@@ -87,7 +87,7 @@ class LokrModule(LycorisBaseModule):
         self.rs_lora = rs_lora
 
         if self.module_type.startswith("conv"):
-            in_dim = org_module.in_channels
+            in_dim = org_module.in_channels // org_module.groups
             k_size = org_module.kernel_size
             out_dim = org_module.out_channels
             self.shape = (out_dim, in_dim, *k_size)
@@ -466,6 +466,14 @@ class LokrModule(LycorisBaseModule):
         return scaled, orig_norm * ratio
 
     def bypass_forward_diff(self, h, scale=1):
+        # Grouped conv bypass uses weight reconstruction because the factored
+        # reshape (b*uq, -1, *rest) is incompatible with groups > 1.
+        if self.kw_dict.get("groups", 1) > 1:
+            diff_weight = self.get_weight(self.shape).to(h.dtype) * self.scalar
+            return self.drop(
+                self.op(h, diff_weight, None, **self.kw_dict) * scale
+            )
+
         is_conv = self.module_type.startswith("conv")
         if self.use_w2:
             ba = self.lokr_w2

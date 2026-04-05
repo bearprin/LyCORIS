@@ -128,6 +128,12 @@ class DyLoraModule(LycorisBaseModule):
         return diff + self.org_weight, None
 
     def bypass_forward_diff(self, x, scale=1, rank=None):
+        # Grouped conv bypass: lora_dim < groups makes F.conv*d fail because
+        # out_channels must be >= groups.  Fall back to weight reconstruction.
+        if self.kw_dict.get("groups", 1) > 1:
+            diff, _ = self.get_diff_weight(scale, device=x.device)
+            return self.op(x, diff.to(x.dtype), None, **self.kw_dict)
+
         if rank is None:
             down, up, gamma = self.get_random_rank_weight()
         else:

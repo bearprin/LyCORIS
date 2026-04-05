@@ -177,7 +177,7 @@ class TLoraModule(LycorisBaseModule):
         # Determine dimensions based on module type
         if self.module_type.startswith("conv"):
             self.isconv = True
-            in_dim = org_module.in_channels
+            in_dim = org_module.in_channels // org_module.groups
             out_dim = org_module.out_channels
             k_size = org_module.kernel_size
             stride = org_module.stride
@@ -483,6 +483,12 @@ class TLoraModule(LycorisBaseModule):
 
     def bypass_forward_diff(self, x: torch.Tensor, scale: float = 1.0) -> torch.Tensor:
         """Compute LoRA contribution in bypass mode."""
+        # Grouped conv bypass: lora_dim is not divisible by groups, so Q/P
+        # 1x1 convs cannot use grouped F.conv*d.  Fall back to weight diff.
+        if self.kw_dict.get("groups", 1) > 1:
+            diff, _ = self.get_diff_weight(multiplier=scale, device=x.device)
+            return self.dropout(self.op(x, diff.to(x.dtype), None, **self.kw_dict))
+
         device = x.device
         dtype = x.dtype
         mask = self._get_mask(device)

@@ -1,3 +1,44 @@
+## Fork Changes
+
+This fork fixes **grouped convolution (`groups > 1`) support** across all LyCORIS modules.
+
+The upstream implementation used `in_channels` as the weight's second dimension for Conv layers, but PyTorch requires `in_channels // groups` (see [Conv2d docs](https://docs.pytorch.org/docs/stable/generated/torch.nn.Conv2d.html)). This caused a `RuntimeError` when applying LyCORIS to any model with depthwise or grouped convolutions (e.g. ultralytics RT-DETR).
+
+**What changed:**
+
+| File | Change |
+|------|--------|
+| `base.py` | `self.shape` uses `in_channels // groups` for conv1d/2d/3d |
+| `locon.py` | `in_dim` divides by groups; bypass fallback for grouped conv |
+| `loha.py` | `in_dim` divides by groups |
+| `lokr.py` | `in_dim` divides by groups; bypass fallback for grouped conv |
+| `glora.py` | `in_dim` divides by groups; bypass fallback for grouped conv |
+| `tlora.py` | `in_dim` divides by groups; bypass fallback for grouped conv |
+| `dylora.py` | bypass fallback for grouped conv |
+
+Backward compatible: `groups == 1` (the common case) produces identical shapes and behavior.
+
+**Install this fork:**
+
+```bash
+pip install git+https://github.com/bearprin/LyCORIS.git
+```
+
+Or if you need to modify locally:
+
+```bash
+git clone https://github.com/bearprin/LyCORIS.git
+cd LyCORIS
+pip install -e .
+```
+
+This replaces the upstream `lycoris-lora` package. To revert to upstream: `pip install lycoris-lora`.
+
+---
+
+<details>
+<summary><b>Original README</b> (click to expand)</summary>
+
 ![pypi](https://img.shields.io/pypi/v/lycoris-lora.svg)
 ![versions](https://img.shields.io/pypi/pyversions/lycoris-lora.svg)
 ![PyPI - License](https://img.shields.io/pypi/l/lycoris-lora)
@@ -296,3 +337,5 @@ For full log, please see [Change.md](Change.md)
   url={https://openreview.net/forum?id=wfzXa8e783}
 }
 ```
+
+</details>

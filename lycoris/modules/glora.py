@@ -70,7 +70,7 @@ class GLoRAModule(LycorisBaseModule):
         if self.module_type.startswith("conv"):
             self.isconv = True
             # For general LoCon
-            in_dim = org_module.in_channels
+            in_dim = org_module.in_channels // org_module.groups
             k_size = org_module.kernel_size
             stride = org_module.stride
             padding = org_module.padding
@@ -208,6 +208,18 @@ class GLoRAModule(LycorisBaseModule):
         return self.org_weight + diff_w, None
 
     def _bypass_forward(self, x, scale=1, diff=False):
+        # Grouped conv bypass: sub-modules expect in_channels//groups but x
+        # has in_channels, so approximate via weight reconstruction.  This
+        # loses the GLoRA input-modification structure W(x + A(x)) + B(x).
+        if self.kw_dict.get("groups", 1) > 1:
+            diff_weight = self.make_weight(x.device).to(x.dtype)
+            delta = self.drop(
+                self.op(x, diff_weight, None, **self.kw_dict) * scale
+            )
+            if diff:
+                return delta
+            return self.org_forward(x) + delta
+
         scale = self.scale * scale
         ax_mid = self.a2(x) * scale
         bx_mid = self.b2(x) * scale

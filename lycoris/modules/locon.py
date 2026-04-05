@@ -74,7 +74,7 @@ class LoConModule(LycorisBaseModule):
         if self.module_type.startswith("conv"):
             self.isconv = True
             # For general LoCon
-            in_dim = org_module.in_channels
+            in_dim = org_module.in_channels // org_module.groups
             k_size = org_module.kernel_size
             stride = org_module.stride
             padding = org_module.padding
@@ -284,6 +284,17 @@ class LoConModule(LycorisBaseModule):
         return scaled, orig_norm * ratio
 
     def bypass_forward_diff(self, x, scale=1):
+        # Grouped conv bypass: lora_down expects in_channels//groups but x has
+        # in_channels, so fall back to weight reconstruction.  Rank dropout is
+        # applied inside make_weight (per output-channel) instead of per-rank.
+        if self.kw_dict.get("groups", 1) > 1:
+            diff_weight = self.make_weight(x.device).to(x.dtype)
+            return self.dropout(
+                self.op(x, diff_weight, None, **self.kw_dict)
+                * self.scale
+                * scale
+            )
+
         if self.tucker:
             mid = self.lora_mid(self.lora_down(x))
         else:
