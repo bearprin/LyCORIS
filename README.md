@@ -13,10 +13,17 @@ The upstream implementation used `in_channels` as the weight's second dimension 
 | `loha.py` | `in_dim` divides by groups |
 | `lokr.py` | `in_dim` divides by groups; bypass fallback for grouped conv |
 | `glora.py` | `in_dim` divides by groups; bypass fallback for grouped conv |
-| `tlora.py` | `in_dim` divides by groups; bypass fallback for grouped conv |
 | `dylora.py` | bypass fallback for grouped conv |
 
 Backward compatible: `groups == 1` (the common case) produces identical shapes and behavior.
+
+> **Note on T-LoRA (`tlora.py`):** We applied the same `in_dim // groups` fix and bypass
+> fallback, but T-LoRA has **pre-existing upstream bugs** unrelated to our changes:
+> it always produces a 1x1 diff weight (`get_diff_weight`) regardless of the original
+> kernel size, then applies it with the original conv's stride/padding, causing spatial
+> dimension mismatches on any conv with kernel > 1x1. **T-LoRA is currently broken for
+> non-1x1 convolutions** (with or without this fork). Use LoRA/LoCon, LoHa, LoKr, or
+> GLoRA instead.
 
 **Install this fork:**
 
